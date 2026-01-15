@@ -129,17 +129,17 @@ class AuthAndTaskFlowTest {
     @Order(2)
     @DisplayName("GET /api/tasks returns user tasks (authorized)")
     void getTasks() throws Exception {
-        val t1 = TaskResponse.builder()
+        val firstTask = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Task A")
                 .deadline(LocalDate.of(2025, 1, 1))
                 .build();
-        val t2 = TaskResponse.builder()
+        val secondTask = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Task B")
                 .deadline(LocalDate.of(2025, 2, 2))
                 .build();
-        when(taskService.getUserTasks()).thenReturn(List.of(t1, t2));
+        when(taskService.getUserTasks()).thenReturn(List.of(firstTask, secondTask));
 
         mockMvc.perform(get("/api/tasks")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -153,12 +153,12 @@ class AuthAndTaskFlowTest {
     @DisplayName("GET /api/tasks/{date} returns tasks by date (authorized)")
     void getTasksByDate() throws Exception {
         val date = LocalDate.of(2025, 3, 3);
-        val t = TaskResponse.builder()
+        val taskByDate = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("By Date")
                 .deadline(date)
                 .build();
-        when(taskService.getTasksByDate(date)).thenReturn(List.of(t));
+        when(taskService.getTasksByDate(date)).thenReturn(List.of(taskByDate));
 
         mockMvc.perform(get("/api/tasks/" + date)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -171,13 +171,13 @@ class AuthAndTaskFlowTest {
     @Order(4)
     @DisplayName("GET /api/tasks/completed returns completed tasks (authorized)")
     void getCompletedTasks() throws Exception {
-        val t = TaskResponse.builder()
+        val completedTask = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Completed")
                 .deadline(LocalDate.of(2025, 4, 4))
                 .completed(true)
                 .build();
-        when(taskService.getCompletedTasks()).thenReturn(List.of(t));
+        when(taskService.getCompletedTasks()).thenReturn(List.of(completedTask));
 
         mockMvc.perform(get("/api/tasks/completed")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -190,24 +190,24 @@ class AuthAndTaskFlowTest {
     @Order(5)
     @DisplayName("POST /api/tasks creates a task (authorized)")
     void createTask() throws Exception {
-        val sd = SubtaskDto.builder().text("Subtask 1").build();
-        val dto = TaskDto.builder()
+        val subtaskDto = SubtaskDto.builder().text("Subtask 1").build();
+        val createTaskDto = TaskDto.builder()
                 .title("New Task")
                 .deadline(LocalDate.of(2025, 5, 5))
-                .subtasks(List.of(sd))
+                .subtasks(List.of(subtaskDto))
                 .build();
 
-        val created = TaskResponse.builder()
+        val createdTask = TaskResponse.builder()
                 .id(UUID.randomUUID())
-                .title(dto.title())
-                .deadline(dto.deadline())
+                .title(createTaskDto.title())
+                .deadline(createTaskDto.deadline())
                 .subtasks(List.of(SubtaskResponse.builder().text("Subtask 1").completed(false).build()))
                 .build();
-        when(taskService.createTask(any(TaskDto.class))).thenReturn(created);
+        when(taskService.createTask(any(TaskDto.class))).thenReturn(createdTask);
 
         mockMvc.perform(post("/api/tasks")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto))
+                        .content(objectMapper.writeValueAsString(createTaskDto))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .with(csrf()))
                 .andExpect(status().isCreated())
@@ -221,25 +221,25 @@ class AuthAndTaskFlowTest {
     @DisplayName("PUT /api/tasks/{id} updates a task (authorized)")
     void updateTask() throws Exception {
         val id = UUID.randomUUID();
-        val sd = SubtaskDto.builder().text("Updated Subtask").build();
-        val dto = UpdateTaskDto.builder()
+        val updatedSubtaskDto = SubtaskDto.builder().text("Updated Subtask").build();
+        val updateTaskDto = UpdateTaskDto.builder()
                 .title("Updated Title")
                 .completed(true)
-                .subtasks(List.of(sd))
+                .subtasks(List.of(updatedSubtaskDto))
                 .build();
 
-        val updated = TaskResponse.builder()
+        val updatedTask = TaskResponse.builder()
                 .id(id)
-                .title(dto.title())
+                .title(updateTaskDto.title())
                 .completed(true)
                 .deadline(LocalDate.of(2025, 6, 6))
                 .subtasks(List.of(SubtaskResponse.builder().text("Updated Subtask").completed(false).build()))
                 .build();
-        when(taskService.updateTask(eq(id), any(UpdateTaskDto.class))).thenReturn(updated);
+        when(taskService.updateTask(eq(id), any(UpdateTaskDto.class))).thenReturn(updatedTask);
 
         mockMvc.perform(put("/api/tasks/" + id)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto))
+                        .content(objectMapper.writeValueAsString(updateTaskDto))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .with(csrf()))
                 .andExpect(status().isOk())

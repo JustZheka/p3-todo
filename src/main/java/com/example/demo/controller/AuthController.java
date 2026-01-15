@@ -107,15 +107,12 @@ public class AuthController {
             }
         }
         
-        if (refresh != null) {
-            if (jwtService.isTokenValid(refresh) && jwtService.isRefreshToken(refresh)) {
-                if (username == null || jwtService.extractUsername(refresh).equals(username)) {
-                    refreshTokenService.revoke(refresh);
-                } else {
-                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                            .body(Map.of("error", "Несовпадение refresh token"));
-                }
+        if (refresh != null && jwtService.isTokenValid(refresh) && jwtService.isRefreshToken(refresh)) {
+            if (username != null && !jwtService.extractUsername(refresh).equals(username)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Несовпадение refresh token"));
             }
+            refreshTokenService.revoke(refresh);
         }
         
         val cookie = ResponseCookie.from("refreshToken", "")
