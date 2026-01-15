@@ -5,10 +5,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties("jwt")
+@ConfigurationProperties("spring.ldap")
 @Data
-public class JwtProperties {
-    String secret;
-    int accessExpirationMinutes;
-    int refreshExpirationDays;
+public class LdapProperties {
+    String urls;
+    String base;
+    String username;
+    String password;
 }
+

@@ -2,17 +2,17 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.LoginRequest;
 import com.example.demo.dto.SubtaskDto;
+import com.example.demo.dto.SubtaskResponse;
 import com.example.demo.dto.TaskDto;
+import com.example.demo.dto.TaskResponse;
 import com.example.demo.dto.UpdateTaskDto;
 import com.example.demo.model.RefreshToken;
-import com.example.demo.model.Subtask;
-import com.example.demo.model.Task;
 import com.example.demo.service.JwtService;
 import com.example.demo.service.RefreshTokenService;
 import com.example.demo.service.TaskService;
 import com.example.demo.utils.JwtAuthFilter;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.val;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -81,15 +81,16 @@ class AuthAndTaskFlowTest {
     @Order(1)
     @DisplayName("Login succeeds and returns tokens (captures for later)")
     void loginSuccess() throws Exception {
-        LoginRequest req = new LoginRequest();
-        req.setUsername("alice");
-        req.setPassword("password");
+        val req = LoginRequest.builder()
+                .username("alice")
+                .password("password")
+                .build();
 
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenReturn(new UsernamePasswordAuthenticationToken("alice", null));
         when(jwtService.generateAccessToken("alice")).thenReturn("access-token");
 
-        RefreshToken saved = RefreshToken.builder()
+        val saved = RefreshToken.builder()
                 .id("id-1")
                 .username("alice")
                 .token("refresh-token")
@@ -98,18 +99,21 @@ class AuthAndTaskFlowTest {
                 .build();
         when(refreshTokenService.createOrReplace("alice")).thenReturn(saved);
 
-        String body = objectMapper.writeValueAsString(req);
-        var result = mockMvc.perform(post("/auth/login")
+        val body = objectMapper.writeValueAsString(req);
+        val result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
+                .andExpect(cookie().exists("refreshToken"))
+                .andExpect(cookie().value("refreshToken", "refresh-token"))
+                .andExpect(cookie().httpOnly("refreshToken", true))
+                .andExpect(cookie().secure("refreshToken", true))
                 .andReturn();
 
-        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        val json = objectMapper.readTree(result.getResponse().getContentAsString());
         accessToken = json.get("accessToken").asText();
-        refreshToken = json.get("refreshToken").asText();
+        refreshToken = result.getResponse().getCookie("refreshToken").getValue();
         loginRefreshEntity = saved;
 
         when(jwtService.isTokenValid(accessToken)).thenReturn(true);
@@ -125,17 +129,15 @@ class AuthAndTaskFlowTest {
     @Order(2)
     @DisplayName("GET /api/tasks returns user tasks (authorized)")
     void getTasks() throws Exception {
-        Task t1 = Task.builder()
+        val t1 = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Task A")
                 .deadline(LocalDate.of(2025, 1, 1))
-                .ldapUid("alice")
                 .build();
-        Task t2 = Task.builder()
+        val t2 = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Task B")
                 .deadline(LocalDate.of(2025, 2, 2))
-                .ldapUid("alice")
                 .build();
         when(taskService.getUserTasks()).thenReturn(List.of(t1, t2));
 
@@ -150,12 +152,11 @@ class AuthAndTaskFlowTest {
     @Order(3)
     @DisplayName("GET /api/tasks/{date} returns tasks by date (authorized)")
     void getTasksByDate() throws Exception {
-        LocalDate date = LocalDate.of(2025, 3, 3);
-        Task t = Task.builder()
+        val date = LocalDate.of(2025, 3, 3);
+        val t = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("By Date")
                 .deadline(date)
-                .ldapUid("alice")
                 .build();
         when(taskService.getTasksByDate(date)).thenReturn(List.of(t));
 
@@ -170,11 +171,10 @@ class AuthAndTaskFlowTest {
     @Order(4)
     @DisplayName("GET /api/tasks/completed returns completed tasks (authorized)")
     void getCompletedTasks() throws Exception {
-        Task t = Task.builder()
+        val t = TaskResponse.builder()
                 .id(UUID.randomUUID())
                 .title("Completed")
                 .deadline(LocalDate.of(2025, 4, 4))
-                .ldapUid("alice")
                 .completed(true)
                 .build();
         when(taskService.getCompletedTasks()).thenReturn(List.of(t));
@@ -190,19 +190,18 @@ class AuthAndTaskFlowTest {
     @Order(5)
     @DisplayName("POST /api/tasks creates a task (authorized)")
     void createTask() throws Exception {
-        TaskDto dto = new TaskDto();
-        dto.setTitle("New Task");
-        dto.setDeadline(LocalDate.of(2025, 5, 5));
-        SubtaskDto sd = new SubtaskDto();
-        sd.setText("Subtask 1");
-        dto.setSubtasks(List.of(sd));
+        val sd = SubtaskDto.builder().text("Subtask 1").build();
+        val dto = TaskDto.builder()
+                .title("New Task")
+                .deadline(LocalDate.of(2025, 5, 5))
+                .subtasks(List.of(sd))
+                .build();
 
-        Task created = Task.builder()
+        val created = TaskResponse.builder()
                 .id(UUID.randomUUID())
-                .title(dto.getTitle())
-                .deadline(dto.getDeadline())
-                .ldapUid("alice")
-                .subtasks(List.of(Subtask.builder().text("Subtask 1").completed(false).build()))
+                .title(dto.title())
+                .deadline(dto.deadline())
+                .subtasks(List.of(SubtaskResponse.builder().text("Subtask 1").completed(false).build()))
                 .build();
         when(taskService.createTask(any(TaskDto.class))).thenReturn(created);
 
@@ -221,21 +220,20 @@ class AuthAndTaskFlowTest {
     @Order(6)
     @DisplayName("PUT /api/tasks/{id} updates a task (authorized)")
     void updateTask() throws Exception {
-        UUID id = UUID.randomUUID();
-        UpdateTaskDto dto = new UpdateTaskDto();
-        dto.setTitle("Updated Title");
-        dto.setCompleted(true);
-        SubtaskDto sd = new SubtaskDto();
-        sd.setText("Updated Subtask");
-        dto.setSubtasks(List.of(sd));
+        val id = UUID.randomUUID();
+        val sd = SubtaskDto.builder().text("Updated Subtask").build();
+        val dto = UpdateTaskDto.builder()
+                .title("Updated Title")
+                .completed(true)
+                .subtasks(List.of(sd))
+                .build();
 
-        Task updated = Task.builder()
+        val updated = TaskResponse.builder()
                 .id(id)
-                .title(dto.getTitle())
+                .title(dto.title())
                 .completed(true)
                 .deadline(LocalDate.of(2025, 6, 6))
-                .ldapUid("alice")
-                .subtasks(List.of(Subtask.builder().text("Updated Subtask").completed(false).build()))
+                .subtasks(List.of(SubtaskResponse.builder().text("Updated Subtask").completed(false).build()))
                 .build();
         when(taskService.updateTask(eq(id), any(UpdateTaskDto.class))).thenReturn(updated);
 
@@ -254,7 +252,7 @@ class AuthAndTaskFlowTest {
     @Order(7)
     @DisplayName("DELETE /api/tasks/{id} deletes a task (authorized)")
     void deleteTask() throws Exception {
-        UUID id = UUID.randomUUID();
+        val id = UUID.randomUUID();
         doNothing().when(taskService).deleteTask(id);
 
         mockMvc.perform(delete("/api/tasks/" + id)
@@ -278,13 +276,12 @@ class AuthAndTaskFlowTest {
                 .revoked(false)
                 .build());
 
-        String body = objectMapper.writeValueAsString(java.util.Map.of("refreshToken", refreshToken));
         mockMvc.perform(post("/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .cookie(new jakarta.servlet.http.Cookie("refreshToken", refreshToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").value("new-access"))
-                .andExpect(jsonPath("$.refreshToken").value("new-refresh"));
+                .andExpect(cookie().exists("refreshToken"))
+                .andExpect(cookie().value("refreshToken", "new-refresh"));
     }
 
     @Test
@@ -293,13 +290,13 @@ class AuthAndTaskFlowTest {
     void logout() throws Exception {
         doNothing().when(refreshTokenService).revoke(refreshToken);
 
-        String body = objectMapper.writeValueAsString(java.util.Map.of("refreshToken", refreshToken));
         mockMvc.perform(post("/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body)
+                        .cookie(new jakarta.servlet.http.Cookie("refreshToken", refreshToken))
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("logged out"));
+                .andExpect(jsonPath("$.status").value("выход выполнен"))
+                .andExpect(cookie().exists("refreshToken"))
+                .andExpect(cookie().maxAge("refreshToken", 0));
 
         verify(refreshTokenService, times(1)).revoke(refreshToken);
     }
@@ -327,12 +324,12 @@ class AuthAndTaskFlowTest {
         }
 
         @Bean
-        public JwtAuthFilter jwtAuthFilter(JwtService jwtService) {
+        public JwtAuthFilter jwtAuthFilter(final JwtService jwtService) {
             return new JwtAuthFilter(jwtService);
         }
 
         @Bean
-        public SecurityFilterChain testSecurity(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+        public SecurityFilterChain testSecurity(final HttpSecurity http, final JwtAuthFilter jwtAuthFilter) throws Exception {
             return http
                     .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(auth -> auth

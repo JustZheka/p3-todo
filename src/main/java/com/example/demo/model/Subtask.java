@@ -20,14 +20,13 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class Subtask {
-
     @Id
     @GeneratedValue
-    private UUID id;
+    UUID id;
 
     @Column(nullable = false)
-    private String text;
+    String text;
 
     @Builder.Default
-    private boolean completed = false;
+    boolean completed = false;
 }

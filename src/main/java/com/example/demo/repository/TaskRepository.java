@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 public interface TaskRepository extends JpaRepository<Task, UUID> {
-    List<Task> findByldapUid(String ldapUid);
-    List<Task> findByldapUidAndCompleted(String ldapUid, boolean completed);
-    List<Task> findByldapUidAndDeadline(String ldapUid, LocalDate dueDate);
+    List<Task> findByldapUid(final String ldapUid);
+    List<Task> findByldapUidAndCompleted(final String ldapUid, final boolean completed);
+    List<Task> findByldapUidAndDeadline(final String ldapUid, final LocalDate dueDate);
 }

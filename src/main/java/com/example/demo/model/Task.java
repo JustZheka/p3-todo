@@ -1,6 +1,8 @@
 package com.example.demo.model;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import jakarta.persistence.*;
@@ -16,26 +18,24 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class Task {
-
     @Id
     @GeneratedValue
-    private UUID id;
+    UUID id;
 
     @Column(nullable = false)
-    private String title;
+    String title;
 
     @Builder.Default
-    private boolean completed = false;
+    boolean completed = false;
 
     @Builder.Default
-    private LocalDate createdAt = LocalDate.now();
+    LocalDate createdAt = LocalDate.now();
 
-    private LocalDate deadline;
-
-    private String ldapUid;
+    LocalDate deadline;
+    String ldapUid;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "task_id")
     @Builder.Default
-    private java.util.List<Subtask> subtasks = new java.util.ArrayList<>();
+    List<Subtask> subtasks = new ArrayList<>();
 }

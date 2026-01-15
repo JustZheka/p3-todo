@@ -5,7 +5,11 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
-import lombok.Data;
+import lombok.val;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -13,19 +17,26 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
-@Data
+@RequiredArgsConstructor
+@FieldDefaults(makeFinal = true)
 public class JwtService {
+    JwtProperties props;
 
-    private final JwtProperties props;
-    private SecretKey key;
-    private Duration accessTtl;
-    private Duration refreshTtl;
+    @NonFinal
+    SecretKey key;
 
-    public JwtService(JwtProperties props) {
-        this.props = props;
-    }
+    @NonFinal
+    Duration accessTtl;
+
+    @Getter
+    @NonFinal
+    Duration refreshTtl;
+
+    Map<String, Instant> revokedAccess = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -34,8 +45,8 @@ public class JwtService {
         this.refreshTtl = Duration.ofDays(props.getRefreshExpirationDays());
     }
 
-    public String generateAccessToken(String username) {
-        Instant now = Instant.now();
+    public String generateAccessToken(final String username) {
+        val now = Instant.now();
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(Date.from(now))
@@ -45,8 +56,8 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateRefreshToken(String username) {
-        Instant now = Instant.now();
+    public String generateRefreshToken(final String username) {
+        val now = Instant.now();
         return Jwts.builder()
                 .subject(username)
                 .issuedAt(Date.from(now))
@@ -56,29 +67,62 @@ public class JwtService {
                 .compact();
     }
 
-    public boolean isTokenValid(String token) {
+    public boolean isTokenValid(final String token) {
         try {
             Jwts.parser()
                     .verifyWith(key)
                     .build()
                     .parseSignedClaims(token);
             return true;
-        } catch (JwtException e) {
+        } catch (final JwtException thrown) {
             return false;
         }
     }
 
-    public String extractUsername(String token) {
-        var jwt = Jwts.parser()
+    public String extractUsername(final String token) {
+        val jwt = Jwts.parser()
                 .verifyWith(key)
                 .build()
                 .parseSignedClaims(token);
         return jwt.getPayload().getSubject();
     }
 
-    public boolean isRefreshToken(String token) {
-        var jwt = Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
-        Object typ = jwt.getPayload().get("typ");
-        return "refresh".equals(typ);
+    public boolean isRefreshToken(final String token) {
+        try {
+            val jwt = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token);
+            val typ = jwt.getPayload().get("typ");
+            return "refresh".equals(typ);
+        } catch (final JwtException thrown) {
+            return false;
+        }
+    }
+
+    public void revokeAccessToken(final String token) {
+        try {
+            val jwt = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token);
+            val exp = jwt.getPayload().getExpiration();
+            if (exp != null) {
+                revokedAccess.put(token, exp.toInstant());
+            }
+        } catch (final JwtException ignored) {
+        }
+    }
+
+    public boolean isAccessRevoked(final String token) {
+        val exp = revokedAccess.get(token);
+        if (exp == null) {
+            return false;
+        }
+        if (exp.isBefore(Instant.now())) {
+            revokedAccess.remove(token);
+            return false;
+        }
+        return true;
     }
 }

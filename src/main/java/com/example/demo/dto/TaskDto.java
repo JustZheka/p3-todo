@@ -1,13 +1,14 @@
 package com.example.demo.dto;
 
-import lombok.Data;
+import lombok.Builder;
+import lombok.NonNull;
 
 import java.time.LocalDate;
 import java.util.List;
 
-@Data
-public class TaskDto {
-    private String title;
-    private LocalDate deadline;
-    private List<SubtaskDto> subtasks;
-}
+@Builder
+public record TaskDto(
+    @NonNull String title,
+    LocalDate deadline,
+    @NonNull List<SubtaskDto> subtasks
+) {}

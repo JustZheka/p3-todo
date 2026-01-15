@@ -2,7 +2,10 @@ package com.example.demo.service;
 
 import com.example.demo.model.RefreshToken;
 import com.example.demo.repository.RefreshTokenRepository;
-import jakarta.transaction.Transactional;
+import lombok.val;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -10,64 +13,58 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
+@FieldDefaults(makeFinal = true)
+@Slf4j
 public class RefreshTokenService {
+    RefreshTokenRepository repo;
+    JwtService jwtService;
 
-    private final RefreshTokenRepository repo;
-    private final JwtService jwtService;
+    public RefreshToken createOrReplace(final String username) {
+        val newToken = jwtService.generateRefreshToken(username);
+        val newExpiry = Instant.now().plus(jwtService.getRefreshTtl());
 
-    public RefreshTokenService(RefreshTokenRepository repo, JwtService jwtService) {
-        this.repo = repo;
-        this.jwtService = jwtService;
-    }
-
-    @Transactional
-    public RefreshToken createOrReplace(String username) {
-        String newToken = jwtService.generateRefreshToken(username);
-        Instant newExpiry = Instant.now().plus(jwtService.getRefreshTtl());
-
-        Optional<RefreshToken> maybeExisting = repo.findByUsername(username);
+        val maybeExisting = repo.findByUsername(username);
 
         if (maybeExisting.isPresent()) {
-            RefreshToken existing = maybeExisting.get();
+            val existing = maybeExisting.get();
             existing.setToken(newToken);
             existing.setExpiry(newExpiry);
             existing.setRevoked(false);
-            return repo.save(existing); // обновление по существующему id
-        } else {
-            RefreshToken rt = new RefreshToken();
-            rt.setId(UUID.randomUUID().toString());
-            rt.setUsername(username);
-            rt.setToken(newToken);
-            rt.setExpiry(newExpiry);
-            rt.setRevoked(false);
-            return repo.save(rt); // создаём новую запись
+            return repo.save(existing);
         }
+
+        val refreshToken = RefreshToken.builder()
+                .id(UUID.randomUUID().toString())
+                .username(username)
+                .token(newToken)
+                .expiry(newExpiry)
+                .revoked(false)
+                .build();
+        return repo.save(refreshToken);
     }
 
-    @Transactional
-    public RefreshToken rotate(String username, String oldToken) {
-        // старый токен помечаем как отозванный
-        repo.findByToken(oldToken).ifPresent(rt -> {
-            rt.setRevoked(true);
-            repo.save(rt);
+    public RefreshToken rotate(final String username, final String oldToken) {
+        repo.findByToken(oldToken).ifPresent(refreshToken -> {
+            refreshToken.setRevoked(true);
+            repo.save(refreshToken);
         });
 
-        // создаём новый refresh-токен (или обновляем существующую запись)
         return createOrReplace(username);
     }
 
-    public Optional<RefreshToken> findValid(String token) {
+    public Optional<RefreshToken> findValid(final String token) {
         return repo.findByToken(token)
-                .filter(rt -> !rt.isRevoked())
-                .filter(rt -> rt.getExpiry().isAfter(Instant.now()))
-                .filter(rt -> jwtService.isTokenValid(token))
-                .filter(rt -> jwtService.isRefreshToken(token));
+                .filter(refreshToken -> !refreshToken.isRevoked())
+                .filter(refreshToken -> refreshToken.getExpiry().isAfter(Instant.now()))
+                .filter(refreshToken -> jwtService.isTokenValid(token))
+                .filter(refreshToken -> jwtService.isRefreshToken(token));
     }
 
-    public void revoke(String token) {
-        repo.findByToken(token).ifPresent(r -> {
-            r.setRevoked(true);
-            repo.save(r);
+    public void revoke(final String token) {
+        repo.findByToken(token).ifPresent(refreshToken -> {
+            refreshToken.setRevoked(true);
+            repo.save(refreshToken);
         });
     }
 }

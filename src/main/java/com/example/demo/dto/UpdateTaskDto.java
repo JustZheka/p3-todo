@@ -1,12 +1,11 @@
 package com.example.demo.dto;
 
-import lombok.Data;
-
+import lombok.Builder;
 import java.util.List;
 
-@Data
-public class UpdateTaskDto {
-    private String title;
-    private boolean completed;
-    private List<SubtaskDto> subtasks;
-}
+@Builder
+public record UpdateTaskDto(
+    String title,
+    boolean completed,
+    List<SubtaskDto> subtasks
+) {}

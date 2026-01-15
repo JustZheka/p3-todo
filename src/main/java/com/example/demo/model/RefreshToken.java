@@ -4,10 +4,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
 
 import java.time.Instant;
 
@@ -17,17 +19,17 @@ import java.time.Instant;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class RefreshToken {
     @Id
-    private String id; // UUID
+    String id;
 
     @Column(nullable = false, unique = true)
-    private String username;
+    String username;
 
     @Column(length = 2048)
-    private String token;
-    private Instant expiry;
-    private boolean revoked = false;
-
-    // constructors, getters, setters
+    String token;
+    Instant expiry;
+    @Builder.Default
+    boolean revoked = false;
 }

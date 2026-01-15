@@ -1,9 +1,9 @@
 package com.example.demo.dto;
 
-import lombok.Data;
+import lombok.Builder;
 
-@Data
-public class LoginRequest {
-    private String username;
-    private String password;
-}
+@Builder
+public record LoginRequest(
+    String username,
+    String password
+) {}

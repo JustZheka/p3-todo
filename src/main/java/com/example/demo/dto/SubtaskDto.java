@@ -1,8 +1,9 @@
 package com.example.demo.dto;
 
-import lombok.Data;
+import lombok.Builder;
+import lombok.NonNull;
 
-@Data
-public class SubtaskDto {
-    private String text;
-}
+@Builder
+public record SubtaskDto(
+    @NonNull String text
+) {}

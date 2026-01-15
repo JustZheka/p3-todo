@@ -6,9 +6,14 @@ services:
       dockerfile: Dockerfile
     container_name: todo-app
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      openldap:
+        condition: service_started
     volumes:
-      - ./do/src:/app/src
-      - ./do/target:/app/target
+      - ./src:/app/src
+      - ./target:/app/target
     ports:
       - "${SPRING_APP_PORT}:8081"
     environment:

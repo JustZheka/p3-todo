@@ -1,91 +1,132 @@
 package com.example.demo.controller;
 
 import com.example.demo.dto.LoginRequest;
-import com.example.demo.model.RefreshToken;
 import com.example.demo.service.JwtService;
 import com.example.demo.service.RefreshTokenService;
+import lombok.val;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ResponseCookie;
 
 import java.util.Map;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/auth")
+@RequiredArgsConstructor
+@FieldDefaults(makeFinal = true)
+@Slf4j
 public class AuthController {
-
-    private final AuthenticationManager authManager;
-    private final JwtService jwtService;
-    private final RefreshTokenService refreshTokenService;
-
-    public AuthController(AuthenticationManager authManager,
-                          JwtService jwtService,
-                          RefreshTokenService refreshTokenService) {
-        this.authManager = authManager;
-        this.jwtService = jwtService;
-        this.refreshTokenService = refreshTokenService;
-    }
+    AuthenticationManager authManager;
+    JwtService jwtService;
+    RefreshTokenService refreshTokenService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<?> login(final @RequestBody LoginRequest req) {
         try {
             authManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(req.getUsername(), req.getPassword())
+                    new UsernamePasswordAuthenticationToken(req.username(), req.password())
             );
 
-            String access = jwtService.generateAccessToken(req.getUsername());
-            RefreshToken saved = refreshTokenService.createOrReplace(req.getUsername());
+            val access = jwtService.generateAccessToken(req.username());
+            val saved = refreshTokenService.createOrReplace(req.username());
 
-            return ResponseEntity.ok(Map.of(
-                    "accessToken", access,
-                    "refreshToken", saved.getToken()
-            ));
-        } catch (AuthenticationException ex) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid credentials"));
+            val cookie = ResponseCookie.from("refreshToken", saved.getToken())
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/auth")
+                    .maxAge(jwtService.getRefreshTtl())
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(Map.of("accessToken", access));
+        } catch (final AuthenticationException thrown) {
+            if (log.isWarnEnabled()) {
+                log.warn("Ошибка аутентификации пользователя: {}", req.username());
+            }
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Неверные учетные данные"));
         }
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(@RequestBody Map<String, String> body) {
-        String refresh = body.get("refreshToken");
-        if (refresh == null || refresh.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "refreshToken required"));
+    public ResponseEntity<?> refresh(final @CookieValue(name = "refreshToken", required = false) String refresh) {
+        if (StringUtils.isBlank(refresh)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "refreshToken обязателен"));
         }
 
-        Optional<RefreshToken> stored = refreshTokenService.findValid(refresh);
+        val stored = refreshTokenService.findValid(refresh);
         if (stored.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Invalid or expired refresh token"));
+                    .body(Map.of("error", "Неверный или просроченный refresh token"));
         }
 
-        String username = jwtService.extractUsername(refresh);
+        val username = jwtService.extractUsername(refresh);
 
-        // Проверяем, что refresh реально из базы
         if (!stored.get().getUsername().equals(username)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Refresh token mismatch"));
+                    .body(Map.of("error", "Несовпадение refresh token"));
         }
 
-        // Генерируем новый access token
-        String newAccess = jwtService.generateAccessToken(username);
+        val newRefresh = refreshTokenService.rotate(username, refresh).getToken();
+        val cookie = ResponseCookie.from("refreshToken", newRefresh)
+                .httpOnly(true)
+                .secure(true)
+                .path("/auth")
+                .maxAge(jwtService.getRefreshTtl())
+                .build();
 
-        // По желанию можно также обновить refresh token
-        RefreshToken newRefresh = refreshTokenService.rotate(username, refresh);
-
-        return ResponseEntity.ok(Map.of(
-                "accessToken", newAccess,
-                "refreshToken", newRefresh.getToken()
-        ));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of("accessToken", jwtService.generateAccessToken(username)));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody Map<String, String> body) {
-        String refresh = body.get("refreshToken");
-        if (refresh != null) refreshTokenService.revoke(refresh);
-        return ResponseEntity.ok(Map.of("status", "logged out"));
+    public ResponseEntity<?> logout(
+            final HttpServletRequest request,
+            final @CookieValue(name = "refreshToken", required = false) String refresh) {
+        
+        val authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        String username = null;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            val accessToken = authHeader.substring(7);
+            if (jwtService.isTokenValid(accessToken) && !jwtService.isRefreshToken(accessToken)) {
+                username = jwtService.extractUsername(accessToken);
+                jwtService.revokeAccessToken(accessToken);
+            }
+        }
+        
+        if (refresh != null) {
+            if (jwtService.isTokenValid(refresh) && jwtService.isRefreshToken(refresh)) {
+                if (username == null || jwtService.extractUsername(refresh).equals(username)) {
+                    refreshTokenService.revoke(refresh);
+                } else {
+                    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                            .body(Map.of("error", "Несовпадение refresh token"));
+                }
+            }
+        }
+        
+        val cookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(true)
+                .path("/auth")
+                .maxAge(0)
+                .build();
+                
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of("status", "выход выполнен"));
     }
 }
