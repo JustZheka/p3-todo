@@ -8,9 +8,11 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties("spring.ldap")
 @Data
 public class LdapProperties {
+
     String urls;
     String base;
     String username;
     String password;
+    String groupSearchBase;
+    String groupSearchFilter;
 }
-

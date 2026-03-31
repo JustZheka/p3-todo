@@ -1,11 +1,12 @@
 package com.example.demo.dto;
 
-import lombok.Builder;
+import jakarta.validation.Valid;
 import java.util.List;
+import lombok.Builder;
 
 @Builder
 public record UpdateTaskDto(
     String title,
-    boolean completed,
-    List<SubtaskDto> subtasks
+    Boolean completed,
+    List<@Valid SubtaskDto> subtasks
 ) {}

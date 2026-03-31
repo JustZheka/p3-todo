@@ -4,7 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.Transient;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -14,28 +13,18 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "refresh_tokens")
+@Table(name = "revoked_access_tokens")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RefreshToken {
+public class RevokedAccessToken {
 
     @Id
-    String id;
-
-    @Column(nullable = false, unique = true)
-    String username;
-
-    @Column(name = "token", length = 2048)
+    @Column(length = 64, nullable = false)
     String tokenHash;
 
-    @Transient
-    String token;
-
+    @Column(nullable = false)
     Instant expiry;
-
-    @Builder.Default
-    boolean revoked = false;
 }

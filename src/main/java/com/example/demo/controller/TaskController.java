@@ -4,18 +4,17 @@ import com.example.demo.dto.TaskDto;
 import com.example.demo.dto.TaskResponse;
 import com.example.demo.dto.UpdateTaskDto;
 import com.example.demo.service.TaskService;
-
-import lombok.val;
-import lombok.RequiredArgsConstructor;
-import lombok.experimental.FieldDefaults;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -23,6 +22,7 @@ import java.util.UUID;
 @FieldDefaults(makeFinal = true)
 @Slf4j
 public class TaskController {
+
     TaskService taskService;
 
     @GetMapping
@@ -34,7 +34,9 @@ public class TaskController {
     }
 
     @GetMapping("/{date}")
-    public List<TaskResponse> getTaskByDate(final @PathVariable LocalDate date) {
+    public List<TaskResponse> getTaskByDate(
+        final @PathVariable LocalDate date
+    ) {
         if (log.isDebugEnabled()) {
             log.debug("Запрос на получение задач на дату: {}", date);
         }
@@ -50,13 +52,18 @@ public class TaskController {
     }
 
     @PostMapping
-    public ResponseEntity<TaskResponse> createTask(final @RequestBody TaskDto taskDto) {
+    public ResponseEntity<TaskResponse> createTask(
+        final @Valid @RequestBody TaskDto taskDto
+    ) {
         val createdTask = taskService.createTask(taskDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(createdTask);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TaskResponse> updateTask(final @PathVariable UUID id, final @RequestBody UpdateTaskDto updateTaskDto) {
+    public ResponseEntity<TaskResponse> updateTask(
+        final @PathVariable UUID id,
+        final @Valid @RequestBody UpdateTaskDto updateTaskDto
+    ) {
         log.info("Обновление задачи с id: {}", id);
         return ResponseEntity.ok(taskService.updateTask(id, updateTaskDto));
     }

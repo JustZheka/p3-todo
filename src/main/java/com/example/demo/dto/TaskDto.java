@@ -1,14 +1,14 @@
 package com.example.demo.dto;
 
-import lombok.Builder;
-import lombok.NonNull;
-
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
 import java.util.List;
+import lombok.Builder;
 
 @Builder
 public record TaskDto(
-    @NonNull String title,
+    @NotBlank String title,
     LocalDate deadline,
-    @NonNull List<SubtaskDto> subtasks
+    List<@Valid SubtaskDto> subtasks
 ) {}

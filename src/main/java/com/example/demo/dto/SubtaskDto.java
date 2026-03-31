@@ -1,9 +1,7 @@
 package com.example.demo.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
-import lombok.NonNull;
 
 @Builder
-public record SubtaskDto(
-    @NonNull String text
-) {}
+public record SubtaskDto(@NotBlank String text) {}

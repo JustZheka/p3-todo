@@ -1,9 +1,10 @@
 package com.example.demo.dto;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 @Builder
 public record LoginRequest(
-    String username,
-    String password
+    @NotBlank String username,
+    @NotBlank String password
 ) {}
