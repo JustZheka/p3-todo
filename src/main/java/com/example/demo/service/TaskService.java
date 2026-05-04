@@ -71,7 +71,16 @@ public class TaskService {
 
     public void deleteTask(final UUID id) {
         log.info("Удаление задачи {}", id);
-        taskRepository.deleteById(id);
+        val task = taskRepository.findById(id)
+            .orElseThrow(() -> new TaskNotFoundException("Задача не найдена"));
+
+        String currentUser = getCurrentUsername();
+        if (!task.getLdapUid().equals(currentUser)) {
+            log.warn("Попытка удаления чужой задачи {} пользователем {}", id, currentUser);
+            throw new LdapUidMismatchException("Нельзя удалить задачу другого пользователя");
+        }
+
+        taskRepository.delete(task);
     }
 
     public List<TaskResponse> getCompletedTasks() {

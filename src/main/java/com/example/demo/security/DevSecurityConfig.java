@@ -31,7 +31,7 @@ public class DevSecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/login", "/public/**", "/auth/refresh")
+                        .requestMatchers("/auth/login", "/public/**", "/auth/refresh", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                         .permitAll()
                         .anyRequest().authenticated()
                 )
